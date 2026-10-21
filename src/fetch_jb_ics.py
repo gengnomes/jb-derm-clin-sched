@@ -15,7 +15,7 @@ from icalendar import Calendar, Event
 CALENDAR_ID = "dermedteam@gmail.com"
 ICS_URL = f"https://calendar.google.com/calendar/ical/{CALENDAR_ID}/public/basic.ics"
 OUTPUT_ICS = "jb-events.ics"
-TOKEN_PATTERN = re.compile(r"$jb$", re.IGNORECASE)
+TOKEN_PATTERN = re.compile(r"\(JB\)", re.IGNORECASE)
 
 def fetch_ics(url):
     resp = requests.get(url, timeout=30)
