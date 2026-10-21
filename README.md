@@ -23,4 +23,4 @@ Quickstart
    git add .
    git commit -m "Initial commit — jb-events exporter"
    git remote add origin https://github.com/<your-github-user>/jb-derm-clin-sched.git
-   git push -u origin main
+   git push -u origin main# jb-derm-clin-sched
