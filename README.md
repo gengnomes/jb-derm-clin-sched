@@ -1,16 +1,21 @@
-# JB calendar publisher
+# Calendar subscription publisher
 
-This project fetches the public ICS feed for `dermedteam@gmail.com`, keeps
-events whose summary or description contains `(JB)` (case-insensitive), and
-publishes the resulting `jb-events.ics` file to the `gh-pages` branch.
+This project fetches the public ICS feed for `dermedteam@gmail.com`, discovers
+parenthesized identifiers such as `(JB)` in event summaries and descriptions,
+and publishes one filtered ICS feed and subscription page for each identifier.
+Matching is case-insensitive. Events with more than one identifier appear in
+each corresponding feed.
 
-## Published feed
+## Published feeds and pages
 
 The GitHub Actions workflow runs every 15 minutes and can also be started
-manually from the **Actions** tab. It tests the filter, fetches the source
-calendar, and publishes `jb-events.ics` and `index.html`. A failed fetch,
-test, or publish fails the workflow rather than publishing a stale or
-incomplete result.
+manually from the **Actions** tab. It tests the filters, fetches the source
+calendar, generates the pages and feeds, then publishes them to `gh-pages`.
+A failed fetch, test, or publish fails the workflow rather than publishing
+stale or incomplete output.
+
+The homepage lists each discovered identifier. For example, `(JB)` produces
+the page `<Pages URL>/jb/` and the feed `<Pages URL>/jb-events.ics`.
 
 To enable the published page:
 
@@ -19,10 +24,8 @@ To enable the published page:
 3. In **Settings → Actions → General → Workflow permissions**, allow the
    workflow to have read and write permissions. The workflow's job requests
    `contents: write` so it can update the publishing branch.
-4. Run **Update JB events ICS** manually once and confirm the run succeeds.
-
-The Pages URL will be shown in repository **Settings → Pages**. The feed is
-available at `<Pages URL>/jb-events.ics`.
+4. Run **Update calendar subscription feeds** manually once and confirm the
+   run succeeds.
 
 ## Local development
 
@@ -34,5 +37,5 @@ python -m unittest discover -s tests -v
 python src/fetch_jb_ics.py
 ```
 
-The fetch command writes `jb-events.ics` in the current directory. It requires
+The fetch command writes generated files to the `site/` directory. It requires
 network access to the public Google Calendar ICS endpoint.
