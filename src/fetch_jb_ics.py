@@ -12,7 +12,7 @@ from icalendar import Calendar, Event
 CALENDAR_ID = "dermedteam@gmail.com"
 ICS_URL = f"https://calendar.google.com/calendar/ical/{CALENDAR_ID}/public/basic.ics"
 OUTPUT_DIR = Path("site")
-IDENTIFIER_PATTERN = re.compile(r"\(([A-Z]{1,8})\)", re.IGNORECASE)
+IDENTIFIER_PATTERN = re.compile(r"\(([A-Z]{2})\)", re.IGNORECASE)
 
 
 def fetch_ics(url):
@@ -86,9 +86,35 @@ def generate_site(ics_text, output_dir=OUTPUT_DIR):
             "  </head>\n"
             "  <body>\n"
             f"    <h1>{title}</h1>\n"
+            "    <p>Copy this calendar URL and paste it into your calendar app's URL subscription option.</p>\n"
+            '    <p><a id="calendar-url" href="../'
+            f'{feed_name}"></a> '
+            '      <button id="copy-calendar-url" type="button" aria-label="Copy calendar URL" '
+            'title="Copy calendar URL">\n'
+            '        <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" '
+            'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+            'stroke-linejoin="round">\n'
+            '          <rect x="8" y="8" width="13" height="13" rx="2"></rect>\n'
+            '          <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path>\n'
+            "        </svg>\n"
+            "      </button>\n"
+            "      <span id=\"copy-status\" role=\"status\" aria-live=\"polite\"></span>\n"
+            "    </p>\n"
             f"    <p>{count} matching events.</p>\n"
-            f'    <p><a href="../{feed_name}">Subscribe to the {identifier} ICS feed</a></p>\n'
             '    <p><a href="../">All calendars</a></p>\n'
+            "    <script>\n"
+            "      const calendarUrl = document.getElementById('calendar-url');\n"
+            "      const copyStatus = document.getElementById('copy-status');\n"
+            "      calendarUrl.textContent = calendarUrl.href;\n"
+            "      document.getElementById('copy-calendar-url').addEventListener('click', async () => {\n"
+            "        try {\n"
+            "          await navigator.clipboard.writeText(calendarUrl.href);\n"
+            "          copyStatus.textContent = 'Copied.';\n"
+            "        } catch {\n"
+            "          copyStatus.textContent = 'Could not copy. Select and copy the URL above.';\n"
+            "        }\n"
+            "      });\n"
+            "    </script>\n"
             "  </body>\n"
             "</html>\n"
         )
