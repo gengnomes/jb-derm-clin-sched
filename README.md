@@ -1,26 +1,38 @@
-# jb-derm-clin-sched
+# JB calendar publisher
 
-Generates `jb-events.ics` by fetching the public ICS for dermedteam@gmail.com and filtering events that contain "(JB)" (case-insensitive). The file is published via GitHub Pages.
+This project fetches the public ICS feed for `dermedteam@gmail.com`, keeps
+events whose summary or description contains `(JB)` (case-insensitive), and
+publishes the resulting `jb-events.ics` file to the `gh-pages` branch.
 
-Features
-- Filters SUMMARY or DESCRIPTION for "(JB)" (case-insensitive)
-- Preserves UID, DTSTART, DTEND, DESCRIPTION, LOCATION, and other VEVENT properties
-- Scheduled run via GitHub Actions (every 15 minutes) and manual trigger
-- Publishes jb-events.ics on the gh-pages branch for GitHub Pages
+## Published feed
 
-Quickstart
-1. Create a new repository on GitHub named `jb-derm-clin-sched` (Public).
-2. Locally, create the project folder and paste these files with the structure:
-   - .github/workflows/update-jb-events.yml
-   - src/fetch_jb_ics.py
-   - requirements.txt
-   - index.html (optional)
-   - README.md
-3. From the project root run:
-   ```bash
-   git init
-   git branch -m main
-   git add .
-   git commit -m "Initial commit — jb-events exporter"
-   git remote add origin https://github.com/<your-github-user>/jb-derm-clin-sched.git
-   git push -u origin main# jb-derm-clin-sched
+The GitHub Actions workflow runs every 15 minutes and can also be started
+manually from the **Actions** tab. It tests the filter, fetches the source
+calendar, and publishes `jb-events.ics` and `index.html`. A failed fetch,
+test, or publish fails the workflow rather than publishing a stale or
+incomplete result.
+
+To enable the published page:
+
+1. In repository **Settings → Pages**, choose **Deploy from a branch**.
+2. Select the `gh-pages` branch and `/ (root)` as the folder.
+3. In **Settings → Actions → General → Workflow permissions**, allow the
+   workflow to have read and write permissions. The workflow's job requests
+   `contents: write` so it can update the publishing branch.
+4. Run **Update JB events ICS** manually once and confirm the run succeeds.
+
+The Pages URL will be shown in repository **Settings → Pages**. The feed is
+available at `<Pages URL>/jb-events.ics`.
+
+## Local development
+
+Python 3.11 or later is recommended.
+
+```bash
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+python src/fetch_jb_ics.py
+```
+
+The fetch command writes `jb-events.ics` in the current directory. It requires
+network access to the public Google Calendar ICS endpoint.

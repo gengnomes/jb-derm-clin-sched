@@ -5,60 +5,55 @@ on:
     - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
+concurrency:
+  group: publish-jb-events
+  cancel-in-progress: false
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
-          fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run fetch script
-        run: |
-          python src/fetch_jb_ics.py
-          ls -l jb-events.ics
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
 
-      - name: Configure Git
+      - name: Run fetch script
+        run: python src/fetch_jb_ics.py
+
+      - name: Prepare published files
         run: |
+          mkdir -p "$RUNNER_TEMP/jb-events-site"
+          cp jb-events.ics index.html "$RUNNER_TEMP/jb-events-site/"
+
+      - name: Publish to gh-pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          site="$RUNNER_TEMP/jb-events-site"
+          cd "$site"
+          git init
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Commit jb-events.ics to gh-pages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Prepare gh-pages branch (create orphan if not present)
-          if git show-ref --verify --quiet refs/heads/gh-pages; then
-            git checkout gh-pages
-          else
-            git checkout --orphan gh-pages
-          fi
-
-          # Remove everything in the branch working tree (we will add the published files)
-          git rm -rf . >/dev/null 2>&1 || true
-
-          # Copy jb-events.ics and optional index.html into place from the default branch worktree
-          git checkout -- jb-events.ics || true
-          if [ -f index.html ]; then git checkout -- index.html || true; fi
-
-          # Stage and commit (no-op if nothing changed)
-          git add jb-events.ics || true
-          if [ -f index.html ]; then git add index.html || true; fi
-          git commit -m "Update jb-events.ics" || echo "No changes to commit"
-
-          # Push to origin gh-pages
-          git push -u origin gh-pages --force
+          git add jb-events.ics index.html
+          git commit -m "Update jb-events.ics"
+          git remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w 0)"
+          git -c "http.extraheader=AUTHORIZATION: basic $auth" push origin HEAD:gh-pages --force
