@@ -71,6 +71,7 @@ class FilterCalendarTests(unittest.TestCase):
             make_event("Clinic (JB)"),
             make_event("Clinic (AB)"),
             make_event("Clinic", "Also covers (jb)"),
+            make_event("Clinic (BGM) and (A)"),
         )
         with tempfile.TemporaryDirectory() as directory:
             output_dir = Path(directory)
@@ -80,13 +81,28 @@ class FilterCalendarTests(unittest.TestCase):
             self.assertEqual(identifiers, ["AB", "JB"])
             self.assertTrue((output_dir / "ab-events.ics").exists())
             self.assertTrue((output_dir / "jb-events.ics").exists())
+            self.assertFalse((output_dir / "bgm-events.ics").exists())
             self.assertTrue((output_dir / "ab/index.html").exists())
             self.assertTrue((output_dir / "jb/index.html").exists())
-            self.assertIn("ab/", (output_dir / "index.html").read_text())
+            index = (output_dir / "index.html").read_text()
+            self.assertIn("ab/", index)
+            page = (output_dir / "jb/index.html").read_text()
+            self.assertIn('href="../jb-events.ics"', page)
+            self.assertIn("Copy this calendar URL", page)
+            self.assertIn('aria-label="Copy calendar URL"', page)
+            self.assertIn("navigator.clipboard.writeText(calendarUrl.href)", page)
             self.assertEqual(
                 len(Calendar.from_ical((output_dir / "jb-events.ics").read_bytes()).walk("VEVENT")),
                 2,
             )
+
+    def test_ignores_identifiers_that_are_not_exactly_two_letters(self):
+        ics_text = make_calendar(make_event("Clinic (A) and (BGM)"))
+
+        with tempfile.TemporaryDirectory() as directory:
+            identifiers = generate_site(ics_text, directory)
+
+        self.assertEqual(identifiers, [])
 
 
 if __name__ == "__main__":
