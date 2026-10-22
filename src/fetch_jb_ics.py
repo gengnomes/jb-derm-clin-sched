@@ -1,72 +1,140 @@
 #!/usr/bin/env python3
-"""
-fetch_jb_ics.py
-Fetch public Google Calendar ICS, filter events containing "(JB)" (case-insensitive),
-and write jb-events.ics preserving UID, DTSTART, DTEND, SUMMARY, DESCRIPTION, LOCATION.
-"""
+"""Fetch a public Google Calendar and publish feeds for parenthesized initials."""
 
+import html
 import re
 import sys
-from datetime import datetime
+from pathlib import Path
+
 import requests
 from icalendar import Calendar, Event
 
-# CONFIG
 CALENDAR_ID = "dermedteam@gmail.com"
 ICS_URL = f"https://calendar.google.com/calendar/ical/{CALENDAR_ID}/public/basic.ics"
-OUTPUT_ICS = "jb-events.ics"
-TOKEN_PATTERN = re.compile(r"\(JB\)", re.IGNORECASE)
+OUTPUT_DIR = Path("site")
+IDENTIFIER_PATTERN = re.compile(r"\(([A-Z]{1,8})\)", re.IGNORECASE)
+
 
 def fetch_ics(url):
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    return resp.text
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+    return response.text
 
-def filter_calendar(ics_text):
+
+def event_text(component):
+    return "\n".join(
+        str(component.get(property_name, ""))
+        for property_name in ("SUMMARY", "DESCRIPTION")
+    )
+
+
+def extract_identifiers(calendar):
+    identifiers = set()
+    for component in calendar.walk("VEVENT"):
+        identifiers.update(
+            match.upper() for match in IDENTIFIER_PATTERN.findall(event_text(component))
+        )
+    return sorted(identifiers)
+
+
+def filter_calendar(ics_text, identifier):
     cal = Calendar.from_ical(ics_text)
     new_cal = Calendar()
-    # copy top-level properties (preserve common metadata where present)
-    for k, v in cal.items():
-        new_cal.add(k, v)
-    # ensure PRODID & VERSION exist
+    for key, value in cal.items():
+        new_cal.add(key, value)
     if "PRODID" not in new_cal:
-        new_cal.add('PRODID', '-//jb-events-generator//github.com//')
+        new_cal.add("PRODID", "-//calendar-feed-generator//github.com//")
     if "VERSION" not in new_cal:
-        new_cal.add('VERSION', '2.0')
+        new_cal.add("VERSION", "2.0")
 
+    token_pattern = re.compile(
+        rf"\({re.escape(identifier)}\)", re.IGNORECASE
+    )
     count = 0
-    for component in cal.walk():
-        if component.name == "VEVENT":
-            summary = str(component.get('SUMMARY', ''))
-            description = str(component.get('DESCRIPTION', ''))
-            text_to_search = summary + "\n" + description
-            if TOKEN_PATTERN.search(text_to_search):
-                # preserve properties from original VEVENT
-                ev = Event()
-                for prop, val in component.items():
-                    ev.add(prop, val)
-                new_cal.add_component(ev)
-                count += 1
+    for component in cal.walk("VEVENT"):
+        if token_pattern.search(event_text(component)):
+            event = Event()
+            for key, value in component.items():
+                event.add(key, value)
+            new_cal.add_component(event)
+            count += 1
     return new_cal, count
+
+
+def generate_site(ics_text, output_dir=OUTPUT_DIR):
+    calendar = Calendar.from_ical(ics_text)
+    identifiers = extract_identifiers(calendar)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    links = []
+    for identifier in identifiers:
+        slug = identifier.lower()
+        feed_name = f"{slug}-events.ics"
+        filtered, count = filter_calendar(ics_text, identifier)
+        (output_dir / feed_name).write_bytes(filtered.to_ical())
+
+        page_dir = output_dir / slug
+        page_dir.mkdir(parents=True, exist_ok=True)
+        title = html.escape(f"{identifier} Events")
+        page = (
+            "<!doctype html>\n"
+            '<html lang="en">\n'
+            "  <head>\n"
+            '    <meta charset="utf-8">\n'
+            f"    <title>{title}</title>\n"
+            "  </head>\n"
+            "  <body>\n"
+            f"    <h1>{title}</h1>\n"
+            f"    <p>{count} matching events.</p>\n"
+            f'    <p><a href="../{feed_name}">Subscribe to the {identifier} ICS feed</a></p>\n'
+            '    <p><a href="../">All calendars</a></p>\n'
+            "  </body>\n"
+            "</html>\n"
+        )
+        (page_dir / "index.html").write_text(page, encoding="utf-8")
+        links.append(
+            f'      <li><a href="{slug}/">{html.escape(identifier)} Events</a> '
+            f'(<a href="{feed_name}">ICS feed</a>)</li>'
+        )
+        print(f"Wrote {feed_name} with {count} events.")
+
+    index = (
+        "<!doctype html>\n"
+        '<html lang="en">\n'
+        "  <head>\n"
+        '    <meta charset="utf-8">\n'
+        "    <title>Calendar subscriptions</title>\n"
+        "  </head>\n"
+        "  <body>\n"
+        "    <h1>Calendar subscriptions</h1>\n"
+        "    <ul>\n"
+        + "\n".join(links)
+        + "\n    </ul>\n"
+        "  </body>\n"
+        "</html>\n"
+    )
+    (output_dir / "index.html").write_text(index, encoding="utf-8")
+    return identifiers
+
 
 def main():
     try:
         print(f"Fetching ICS from {ICS_URL}")
         ics_text = fetch_ics(ICS_URL)
-    except Exception as e:
-        print("Failed to fetch calendar ICS:", e, file=sys.stderr)
+    except requests.RequestException as error:
+        print("Failed to fetch calendar ICS:", error, file=sys.stderr)
         sys.exit(2)
 
     try:
-        new_cal, count = filter_calendar(ics_text)
-    except Exception as e:
-        print("Failed to parse or filter ICS:", e, file=sys.stderr)
+        identifiers = generate_site(ics_text)
+    except Exception as error:
+        print("Failed to parse or publish calendar ICS:", error, file=sys.stderr)
         sys.exit(3)
 
-    with open(OUTPUT_ICS, "wb") as f:
-        f.write(new_cal.to_ical())
+    if not identifiers:
+        print("No parenthesized identifiers found; published an empty index.")
 
-    print(f"Wrote {OUTPUT_ICS} with {count} events.")
 
 if __name__ == "__main__":
     main()
