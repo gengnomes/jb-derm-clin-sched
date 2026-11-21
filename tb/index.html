@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>TB Events</title>
+  </head>
+  <body>
+    <h1>TB Events</h1>
+    <p>Copy this calendar URL and paste it into your calendar app's URL subscription option.</p>
+    <p><a id="calendar-url" href="../tb-events.ics"></a>       <button id="copy-calendar-url" type="button" aria-label="Copy calendar URL" title="Copy calendar URL">
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="8" y="8" width="13" height="13" rx="2"></rect>
+          <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"></path>
+        </svg>
+      </button>
+      <span id="copy-status" role="status" aria-live="polite"></span>
+    </p>
+    <p>88 matching events.</p>
+    <p><a href="../">All calendars</a></p>
+    <script>
+      const calendarUrl = document.getElementById('calendar-url');
+      const copyStatus = document.getElementById('copy-status');
+      calendarUrl.textContent = calendarUrl.href;
+      document.getElementById('copy-calendar-url').addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(calendarUrl.href);
+          copyStatus.textContent = 'Copied.';
+        } catch {
+          copyStatus.textContent = 'Could not copy. Select and copy the URL above.';
+        }
+      });
+    </script>
+  </body>
+</html>
